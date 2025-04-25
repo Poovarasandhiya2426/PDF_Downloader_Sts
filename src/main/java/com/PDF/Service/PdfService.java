@@ -1,6 +1,5 @@
 package com.PDF.Service;
 
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.kernel.pdf.PdfDocument;
@@ -27,20 +26,21 @@ public class PdfService {
         try {
             // Step 1: Call API
             String apiUrl = "http://localhost:8056/getListObj";
-            HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
-            conn.setRequestMethod("GET");
-            InputStream inputStream = conn.getInputStream();
+            HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+            connection.setRequestMethod("GET");
 
-            // Step 2: Parse JSON
-            ObjectMapper mapper = new ObjectMapper();
-            List<Map<String, Object>> players = mapper.readValue(inputStream, new TypeReference<>() {});
-            inputStream.close();
+            InputStream responseStream = connection.getInputStream();
 
-            // Step 3: Generate PDF
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            PdfWriter writer = new PdfWriter(out);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
+            // Step 2: Parse JSON to List of Employee objects (or Map if dynamic)
+            ObjectMapper objectMapper = new ObjectMapper();
+            List<Map<String, Object>> employeeList = objectMapper.readValue(responseStream, new TypeReference<>() {});
+            responseStream.close();
+
+            // Step 3: Create PDF Document
+            ByteArrayOutputStream pdfOutputStream = new ByteArrayOutputStream();
+            PdfWriter pdfWriter = new PdfWriter(pdfOutputStream);
+            PdfDocument pdfDocument = new PdfDocument(pdfWriter);
+            Document document = new Document(pdfDocument);
 
             document.add(new Paragraph("Employee Details")
                     .setBold()
@@ -48,29 +48,34 @@ public class PdfService {
                     .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER)
             );
 
-            if (!players.isEmpty()) {
-                Map<String, Object> firstPlayer = players.get(0);
-                Table table = new Table(UnitValue.createPercentArray(firstPlayer.size())).useAllAvailableWidth();
+            if (!employeeList.isEmpty()) {
+                Map<String, Object> firstEmployee = employeeList.get(0);
+                Table employeeTable = new Table(UnitValue.createPercentArray(firstEmployee.size())).useAllAvailableWidth();
 
-                // Header
-                for (String key : firstPlayer.keySet()) {
-                    table.addHeaderCell(new Cell().add(new Paragraph(key).setBold()).setBorder(Border.NO_BORDER));
+                // Add table headers
+                for (String fieldName : firstEmployee.keySet()) {
+                    employeeTable.addHeaderCell(
+                            new Cell().add(new Paragraph(fieldName).setBold()).setBorder(Border.NO_BORDER)
+                    );
                 }
 
-                // Data
-                for (Map<String, Object> player : players) {
-                    for (Object value : player.values()) {
-                        table.addCell(new Cell().add(new Paragraph(value.toString())).setBorder(Border.NO_BORDER));
+                // Add employee data rows
+                for (Map<String, Object> employee : employeeList) {
+                    for (Object fieldValue : employee.values()) {
+                        employeeTable.addCell(
+                                new Cell().add(new Paragraph(fieldValue.toString())).setBorder(Border.NO_BORDER)
+                        );
                     }
                 }
 
-                document.add(table);
+                document.add(employeeTable);
             }
 
             document.close();
-            return out.toByteArray();
+            return pdfOutputStream.toByteArray();
+
         } catch (Exception e) {
-            throw new RuntimeException("Error generating PDF", e);
+            throw new RuntimeException("Error generating PDF from employee data", e);
         }
     }
 }
